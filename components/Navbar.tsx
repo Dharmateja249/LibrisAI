@@ -9,7 +9,6 @@ import { usePathname } from "next/navigation";
 const navItems = [
     { label: "Library", href: "/" },
     { label: "Add New", href: "/books/new" },
-    { label: "Pricing", href: "/subscriptions" },
 ];
 
 const Navbar = () => {
@@ -29,7 +28,10 @@ const Navbar = () => {
                 </Link>
 
                 <div className="flex items-center gap-3 sm:gap-5">
-                    <nav aria-label="Primary navigation" className="flex w-fit items-center gap-3 sm:gap-7.5">
+                    <nav
+                        aria-label="Primary navigation"
+                        className="flex w-fit items-center gap-3 sm:gap-7.5"
+                    >
                         {navItems.map(({ label, href }) => {
                             const isActive =
                                 pathname === href ||
@@ -39,11 +41,10 @@ const Navbar = () => {
                                 <Link
                                     key={label}
                                     href={href}
-                                    className={`nav-link-base ${
-                                        isActive
+                                    className={`nav-link-base ${isActive
                                             ? "nav-link-active"
                                             : "text-black hover:opacity-70"
-                                    }`}
+                                        }`}
                                 >
                                     {label}
                                 </Link>
@@ -53,19 +54,40 @@ const Navbar = () => {
 
                     <div className="flex items-center gap-3">
                         <Show when="signed-out">
-                            <SignInButton mode="modal">
-                                <button type="button" className="nav-btn whitespace-nowrap">
-                                    Sign in
-                                </button>
-                            </SignInButton>
-                            <SignUpButton mode="modal">
-                                <button type="button" className="btn-primary whitespace-nowrap px-4 py-2 text-sm">
-                                    Sign up
-                                </button>
-                            </SignUpButton>
+                            <div className="flex items-center gap-4">
+                                <SignInButton mode="modal">
+                                    <button
+                                        type="button"
+                                        className="text-sm font-medium text-black hover:opacity-70 transition-opacity"
+                                    >
+                                        Sign in
+                                    </button>
+                                </SignInButton>
+                                <SignUpButton mode="modal">
+                                    <button
+                                        type="button"
+                                        className="btn-primary whitespace-nowrap px-4 py-2 text-sm"
+                                    >
+                                        Sign up
+                                    </button>
+                                </SignUpButton>
+                            </div>
                         </Show>
+
                         <Show when="signed-in">
-                            <UserButton />
+                            <div className="flex items-center gap-2.5">
+                                <UserButton />
+                                <Link
+                                    href="/subscriptions"
+                                    className={`nav-link-base ${
+                                        pathname === "/subscriptions" || pathname.startsWith("/subscriptions")
+                                            ? "nav-link-active"
+                                            : "text-black hover:opacity-70"
+                                    }`}
+                                >
+                                    Subscriptions
+                                </Link>
+                            </div>
                         </Show>
                     </div>
                 </div>
