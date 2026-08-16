@@ -1,6 +1,6 @@
 "use client";
 
-import { Show, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import logo from "@/assets/assets/logo.png";
 import Link from "next/link";
 import Image from "next/image";
@@ -55,14 +55,24 @@ const Navbar = () => {
 
                     <div className="flex items-center gap-3">
                         <Show when="signed-out">
-                            <SignUpButton mode="modal">
-                                <button
-                                    type="button"
-                                    className="btn-primary whitespace-nowrap px-4 py-2 text-sm"
-                                >
-                                    Sign up
-                                </button>
-                            </SignUpButton>
+                            <div className="flex items-center gap-4">
+                                <SignInButton mode="modal">
+                                    <button
+                                        type="button"
+                                        className="text-sm font-medium text-black hover:opacity-70 transition-opacity"
+                                    >
+                                        Sign in
+                                    </button>
+                                </SignInButton>
+                                <SignUpButton mode="modal">
+                                    <button
+                                        type="button"
+                                        className="btn-primary whitespace-nowrap px-4 py-2 text-sm"
+                                    >
+                                        Sign up
+                                    </button>
+                                </SignUpButton>
+                            </div>
                         </Show>
 
                         <Show when="signed-in">

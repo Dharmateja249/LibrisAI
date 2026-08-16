@@ -1,8 +1,22 @@
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import BookCard from "@/components/BookCard";
 import { SAMPLE_BOOKS } from "@/lib/constants";
 
 const BookList = () => {
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredBooks = SAMPLE_BOOKS.filter((book) => {
+        if (!normalizedQuery) return true;
+        return (
+            book.title.toLowerCase().includes(normalizedQuery) ||
+            book.author.toLowerCase().includes(normalizedQuery)
+        );
+    });
+
     return (
         <section aria-labelledby="books-section-title" className="mt-10">
             {/* Section header */}
@@ -31,6 +45,8 @@ const BookList = () => {
                         <input
                             id="book-search-input"
                             type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search books…"
                             className="library-search-input bg-transparent text-sm"
                             aria-label="Search books"
@@ -49,14 +65,8 @@ const BookList = () => {
                 </div>
             </div>
 
-            {/* Books grid */}
-            {SAMPLE_BOOKS.length > 0 ? (
-                <div className="library-books-grid">
-                    {SAMPLE_BOOKS.map((book) => (
-                        <BookCard key={book.slug} {...book} />
-                    ))}
-                </div>
-            ) : (
+            {/* Books grid / Empty states */}
+            {SAMPLE_BOOKS.length === 0 ? (
                 <div className="library-empty-card text-center">
                     <p className="section-title mb-2">No books yet</p>
                     <p className="subtitle text-base mb-6">
@@ -66,6 +76,26 @@ const BookList = () => {
                         <span className="text-xl leading-none">+</span>
                         <span>Add your first book</span>
                     </Link>
+                </div>
+            ) : filteredBooks.length > 0 ? (
+                <div className="library-books-grid">
+                    {filteredBooks.map((book) => (
+                        <BookCard key={book.slug} {...book} />
+                    ))}
+                </div>
+            ) : (
+                <div className="library-empty-card text-center">
+                    <p className="section-title mb-2">No matching books found</p>
+                    <p className="subtitle text-base mb-6">
+                        No books matched &ldquo;{searchQuery}&rdquo;. Try searching by another title or author.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="library-cta-primary inline-flex w-fit !text-base"
+                    >
+                        Clear search
+                    </button>
                 </div>
             )}
         </section>

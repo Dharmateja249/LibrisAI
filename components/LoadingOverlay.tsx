@@ -16,6 +16,8 @@ const LoadingOverlay = ({
     steps,
     title = "Synthesising your book",
 }: LoadingOverlayProps) => {
+    const activeStep = steps.find((step) => step.status === "active");
+
     return (
         <div
             className="loading-wrapper"
@@ -55,6 +57,10 @@ const LoadingOverlay = ({
 
                     {/* Progress Steps */}
                     <div className="loading-progress w-full flex flex-col gap-3 max-w-sm">
+                        {/* Live region for screen readers */}
+                        <div role="status" className="sr-only">
+                            {activeStep ? activeStep.label : ""}
+                        </div>
                         {steps.map((step, index) => {
                             const isDone = step.status === "done";
                             const isActive = step.status === "active";

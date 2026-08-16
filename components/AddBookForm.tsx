@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { VOICE_OPTIONS } from "@/lib/constants";
 import LoadingOverlay, { LoadingStep } from "@/components/LoadingOverlay";
 
 const AddBookForm = () => {
-    const router = useRouter();
 
     // Form state
     const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -35,6 +33,21 @@ const AddBookForm = () => {
     // Refs for hidden inputs
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
+
+    // Manage cover preview object URL lifecycle to prevent memory leaks
+    useEffect(() => {
+        if (!coverFile) {
+            setCoverPreview(null);
+            return;
+        }
+
+        const url = URL.createObjectURL(coverFile);
+        setCoverPreview(url);
+
+        return () => {
+            URL.revokeObjectURL(url);
+        };
+    }, [coverFile]);
 
     // Handle PDF selection
     const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,8 +117,6 @@ const AddBookForm = () => {
             }
             setErrorMessage(null);
             setCoverFile(file);
-            const url = URL.createObjectURL(file);
-            setCoverPreview(url);
         }
     };
 
@@ -120,15 +131,12 @@ const AddBookForm = () => {
             }
             setErrorMessage(null);
             setCoverFile(file);
-            const url = URL.createObjectURL(file);
-            setCoverPreview(url);
         }
     };
 
     const removeCover = (e: React.MouseEvent) => {
         e.stopPropagation();
         setCoverFile(null);
-        setCoverPreview(null);
         if (coverInputRef.current) coverInputRef.current.value = "";
     };
 
@@ -158,61 +166,12 @@ const AddBookForm = () => {
             return;
         }
 
-        setErrorMessage(null);
-        setIsSubmitting(true);
-
-        // Sequence through loading steps
-        try {
-            // Step 1
-            setLoadingSteps([
-                { label: "Uploading PDF…", status: "active" },
-                { label: "Extracting text content…", status: "pending" },
-                { label: "Analysing book structure…", status: "pending" },
-                { label: "Preparing AI voice assistant…", status: "pending" },
-            ]);
-            await new Promise((r) => setTimeout(r, 1200));
-
-            // Step 2
-            setLoadingSteps([
-                { label: "Uploading PDF…", status: "done" },
-                { label: "Extracting text content…", status: "active" },
-                { label: "Analysing book structure…", status: "pending" },
-                { label: "Preparing AI voice assistant…", status: "pending" },
-            ]);
-            await new Promise((r) => setTimeout(r, 1400));
-
-            // Step 3
-            setLoadingSteps([
-                { label: "Uploading PDF…", status: "done" },
-                { label: "Extracting text content…", status: "done" },
-                { label: "Analysing book structure…", status: "active" },
-                { label: "Preparing AI voice assistant…", status: "pending" },
-            ]);
-            await new Promise((r) => setTimeout(r, 1200));
-
-            // Step 4
-            setLoadingSteps([
-                { label: "Uploading PDF…", status: "done" },
-                { label: "Extracting text content…", status: "done" },
-                { label: "Analysing book structure…", status: "done" },
-                { label: "Preparing AI voice assistant…", status: "active" },
-            ]);
-            await new Promise((r) => setTimeout(r, 1000));
-
-            // Done
-            setLoadingSteps([
-                { label: "Uploading PDF…", status: "done" },
-                { label: "Extracting text content…", status: "done" },
-                { label: "Analysing book structure…", status: "done" },
-                { label: "Preparing AI voice assistant…", status: "done" },
-            ]);
-            await new Promise((r) => setTimeout(r, 600));
-
-            router.push("/");
-        } catch {
-            setIsSubmitting(false);
-            setErrorMessage("An error occurred during synthesis. Please try again.");
-        }
+        // Real backend synthesis integration placeholder
+        // Keeps user on the form and notifies that backend synthesis is currently unavailable
+        setErrorMessage(
+            "Book synthesis backend service is currently unavailable. Book creation will be enabled once backend processing is connected."
+        );
+        setIsSubmitting(false);
     };
 
     const maleVoices = VOICE_OPTIONS.filter((v) => v.gender === "male");
@@ -495,6 +454,7 @@ const AddBookForm = () => {
                                         <button
                                             key={voice.id}
                                             type="button"
+                                            aria-pressed={isSelected}
                                             onClick={() => setSelectedVoice(voice.id)}
                                             className={`flex items-start gap-3 p-4 rounded-xl text-left border transition-all cursor-pointer ${
                                                 isSelected
@@ -539,6 +499,7 @@ const AddBookForm = () => {
                                         <button
                                             key={voice.id}
                                             type="button"
+                                            aria-pressed={isSelected}
                                             onClick={() => setSelectedVoice(voice.id)}
                                             className={`flex items-start gap-3 p-4 rounded-xl text-left border transition-all cursor-pointer ${
                                                 isSelected
