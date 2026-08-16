@@ -34,20 +34,33 @@ const AddBookForm = () => {
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
 
-    // Manage cover preview object URL lifecycle to prevent memory leaks
-    useEffect(() => {
-        if (!coverFile) {
-            setCoverPreview(null);
-            return;
+    const coverPreviewRef = useRef<string | null>(null);
+
+    const updateCover = (file: File | null) => {
+        if (coverPreviewRef.current) {
+            URL.revokeObjectURL(coverPreviewRef.current);
+            coverPreviewRef.current = null;
         }
 
-        const url = URL.createObjectURL(coverFile);
-        setCoverPreview(url);
+        setCoverFile(file);
 
+        if (file) {
+            const url = URL.createObjectURL(file);
+            coverPreviewRef.current = url;
+            setCoverPreview(url);
+        } else {
+            setCoverPreview(null);
+        }
+    };
+
+    // Manage cover preview object URL lifecycle to prevent memory leaks
+    useEffect(() => {
         return () => {
-            URL.revokeObjectURL(url);
+            if (coverPreviewRef.current) {
+                URL.revokeObjectURL(coverPreviewRef.current);
+            }
         };
-    }, [coverFile]);
+    }, []);
 
     // Handle PDF selection
     const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,7 +129,7 @@ const AddBookForm = () => {
                 return;
             }
             setErrorMessage(null);
-            setCoverFile(file);
+            updateCover(file);
         }
     };
 
@@ -130,13 +143,13 @@ const AddBookForm = () => {
                 return;
             }
             setErrorMessage(null);
-            setCoverFile(file);
+            updateCover(file);
         }
     };
 
     const removeCover = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setCoverFile(null);
+        updateCover(null);
         if (coverInputRef.current) coverInputRef.current.value = "";
     };
 

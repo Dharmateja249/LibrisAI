@@ -1,6 +1,6 @@
 "use client";
 
-import { Show, SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import logo from "@/assets/assets/logo.png";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,7 +13,6 @@ const navItems = [
 
 const Navbar = () => {
     const pathname = usePathname();
-    const { user } = useUser();
 
     return (
         <header className="fixed z-50 w-full bg-(--bg-primary)">
@@ -86,7 +85,7 @@ const Navbar = () => {
                                             : "text-black hover:opacity-70"
                                     }`}
                                 >
-                                    {user?.firstName || user?.fullName || "Account"}
+                                    Subscriptions
                                 </Link>
                             </div>
                         </Show>
