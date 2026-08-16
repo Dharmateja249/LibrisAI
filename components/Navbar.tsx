@@ -1,6 +1,6 @@
 "use client";
 
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 import logo from "@/assets/assets/logo.png";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,11 +9,11 @@ import { usePathname } from "next/navigation";
 const navItems = [
     { label: "Library", href: "/" },
     { label: "Add New", href: "/books/new" },
-    { label: "Pricing", href: "/subscriptions" },
 ];
 
 const Navbar = () => {
     const pathname = usePathname();
+    const { user } = useUser();
 
     return (
         <header className="fixed z-50 w-full bg-(--bg-primary)">
@@ -29,7 +29,10 @@ const Navbar = () => {
                 </Link>
 
                 <div className="flex items-center gap-3 sm:gap-5">
-                    <nav aria-label="Primary navigation" className="flex w-fit items-center gap-3 sm:gap-7.5">
+                    <nav
+                        aria-label="Primary navigation"
+                        className="flex w-fit items-center gap-3 sm:gap-7.5"
+                    >
                         {navItems.map(({ label, href }) => {
                             const isActive =
                                 pathname === href ||
@@ -39,11 +42,10 @@ const Navbar = () => {
                                 <Link
                                     key={label}
                                     href={href}
-                                    className={`nav-link-base ${
-                                        isActive
+                                    className={`nav-link-base ${isActive
                                             ? "nav-link-active"
                                             : "text-black hover:opacity-70"
-                                    }`}
+                                        }`}
                                 >
                                     {label}
                                 </Link>
@@ -53,19 +55,30 @@ const Navbar = () => {
 
                     <div className="flex items-center gap-3">
                         <Show when="signed-out">
-                            <SignInButton mode="modal">
-                                <button type="button" className="nav-btn whitespace-nowrap">
-                                    Sign in
-                                </button>
-                            </SignInButton>
                             <SignUpButton mode="modal">
-                                <button type="button" className="btn-primary whitespace-nowrap px-4 py-2 text-sm">
+                                <button
+                                    type="button"
+                                    className="btn-primary whitespace-nowrap px-4 py-2 text-sm"
+                                >
                                     Sign up
                                 </button>
                             </SignUpButton>
                         </Show>
+
                         <Show when="signed-in">
-                            <UserButton />
+                            <div className="flex items-center gap-2.5">
+                                <UserButton />
+                                <Link
+                                    href="/subscriptions"
+                                    className={`nav-link-base ${
+                                        pathname === "/subscriptions" || pathname.startsWith("/subscriptions")
+                                            ? "nav-link-active"
+                                            : "text-black hover:opacity-70"
+                                    }`}
+                                >
+                                    {user?.firstName || user?.fullName || "Account"}
+                                </Link>
+                            </div>
                         </Show>
                     </div>
                 </div>
