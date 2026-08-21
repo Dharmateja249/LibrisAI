@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { createVoiceSession } from "@/lib/actions/book.actions";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createVoiceSession, addVoiceSessionMessages } from "@/lib/actions/book.actions";
 
 interface VoiceInterviewButtonProps {
     bookId?: string;
@@ -30,13 +30,15 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [inputMessage, setInputMessage] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionError, setSessionError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const responseTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-    const clearAllTimers = () => {
+    const clearAllTimers = useCallback(() => {
         responseTimersRef.current.forEach((timer) => clearTimeout(timer));
         responseTimersRef.current = [];
-    };
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,7 +58,7 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
                 window.speechSynthesis.cancel();
             }
         };
-    }, []);
+    }, [clearAllTimers]);
 
     // Handle voice playback using Web Speech API
     const speakText = (text: string) => {
@@ -76,10 +78,13 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
 
     const handleStartInterview = async () => {
         setIsLoading(true);
+        setSessionError(null);
         try {
             const initialGreeting = `Hello! I'm ${
                 bookVoice.charAt(0).toUpperCase() + bookVoice.slice(1)
             }, your AI companion for "${bookTitle}" by ${bookAuthor}. What would you like to explore or discuss today?`;
+
+            let newSessionId: string | null = null;
 
             // If it's a real DB book with an ID, create session in MongoDB
             if (bookId && !bookId.startsWith("sample-")) {
@@ -95,10 +100,23 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
                     ],
                 });
                 if (!res.success && res.error) {
+                    // Auth/ownership/missing-book errors: surface and abort
+                    const authErrors = ["Unauthorized", "not found", "does not belong"];
+                    const isAuthError = authErrors.some((e) => res.error!.includes(e));
+                    if (isAuthError) {
+                        setSessionError(res.error);
+                        setIsLoading(false);
+                        return;
+                    }
+                    // Transient infrastructure error: fall through to local fallback
                     throw new Error(res.error);
+                }
+                if (res.sessionId) {
+                    newSessionId = res.sessionId;
                 }
             }
 
+            setSessionId(newSessionId);
             setMessages([
                 {
                     id: "msg-init",
@@ -111,7 +129,8 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
             speakText(initialGreeting);
         } catch (error) {
             console.error("Error creating voice session:", error);
-            // Fallback gracefully to client-side session
+            // Fallback gracefully to client-side-only session for transient errors
+            setSessionId(null);
             const fallbackGreeting = `Hello! I'm ready to discuss "${bookTitle}" with you. What questions do you have?`;
             setMessages([
                 {
@@ -135,6 +154,8 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
         }
         setIsSpeaking(false);
         setIsOpen(false);
+        setSessionId(null);
+        setSessionError(null);
     };
 
     const handleSendMessage = (e?: React.FormEvent) => {
@@ -152,7 +173,15 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
         setMessages((prev) => [...prev, userMsg]);
         setInputMessage("");
 
+        // Persist user message to MongoDB if we have a real session
+        if (sessionId) {
+            addVoiceSessionMessages(sessionId, [
+                { role: "user", content: trimmed, timestamp: new Date() },
+            ]).catch((err) => console.error("Failed to persist user message:", err));
+        }
+
         // Generate intelligent contextual response with managed timer handle
+        const currentSessionId = sessionId;
         const timer = setTimeout(() => {
             // Remove this timer from the active list
             responseTimersRef.current = responseTimersRef.current.filter((t) => t !== timer);
@@ -173,6 +202,13 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
 
             setMessages((prev) => [...prev, assistantMsg]);
             speakText(chosenResponse);
+
+            // Persist assistant message to MongoDB if we have a real session
+            if (currentSessionId) {
+                addVoiceSessionMessages(currentSessionId, [
+                    { role: "assistant", content: chosenResponse, timestamp: new Date() },
+                ]).catch((err) => console.error("Failed to persist assistant message:", err));
+            }
         }, 600);
 
         responseTimersRef.current.push(timer);
@@ -185,7 +221,7 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
                 id="start-voice-interview-btn"
                 onClick={handleStartInterview}
                 disabled={isLoading}
-                className="library-cta-primary !px-6 !py-3 !text-sm flex items-center gap-2"
+                className={`library-cta-primary !px-6 !py-3 !text-sm flex items-center gap-2${sessionError ? " ring-2 ring-red-400" : ""}`}
                 aria-label={`Start Voice Interview for ${bookTitle}`}
             >
                 {isLoading ? (
@@ -215,6 +251,9 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
                     </>
                 )}
             </button>
+            {sessionError && (
+                <p className="text-sm text-red-600 mt-2" role="alert">{sessionError}</p>
+            )}
 
             {/* Interactive Voice Interview Modal */}
             {isOpen && (
@@ -317,6 +356,7 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
                                 value={inputMessage}
                                 onChange={(e) => setInputMessage(e.target.value)}
                                 placeholder={`Ask ${bookVoice} about ${bookTitle}…`}
+                                aria-label={`Ask ${bookVoice} about ${bookTitle}`}
                                 className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary,#fcfbf9)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[#663820]/30"
                             />
                             <button

@@ -17,6 +17,7 @@ import type {
     CreateVoiceSessionParams,
     GetBooksParams,
     IBookSegment,
+    IVoiceMessage,
 } from "@/types";
 
 /**
@@ -606,6 +607,47 @@ export async function createVoiceSession(params: CreateVoiceSessionParams) {
         return {
             success: false,
             error: error instanceof Error ? error.message : "Failed to create voice session",
+        };
+    }
+}
+
+/**
+ * Appends messages to an existing VoiceSession in MongoDB.
+ * Derives the authenticated Clerk user ID server-side and verifies session ownership.
+ */
+export async function addVoiceSessionMessages(sessionId: string, newMessages: IVoiceMessage[]) {
+    try {
+        const { userId } = await auth();
+        if (!userId) {
+            return { success: false, error: "Unauthorized." };
+        }
+
+        if (!sessionId || sessionId.startsWith("session-")) {
+            return { success: true };
+        }
+
+        await connectToDatabase();
+
+        const session = await VoiceSession.findOneAndUpdate(
+            { _id: sessionId, clerkId: userId },
+            {
+                $push: {
+                    messages: { $each: newMessages },
+                },
+            },
+            { new: true }
+        );
+
+        if (!session) {
+            return { success: false, error: "Voice session not found or unauthorized." };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to append voice session messages:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Failed to append messages",
         };
     }
 }
