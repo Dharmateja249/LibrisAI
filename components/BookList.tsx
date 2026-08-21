@@ -4,12 +4,18 @@ import React, { useState } from "react";
 import Link from "next/link";
 import BookCard from "@/components/BookCard";
 import { SAMPLE_BOOKS } from "@/lib/constants";
+import type { BookCardProps } from "@/types";
 
-const BookList = () => {
+interface BookListProps {
+    initialBooks?: BookCardProps[];
+}
+
+const BookList = ({ initialBooks = SAMPLE_BOOKS }: BookListProps) => {
     const [searchQuery, setSearchQuery] = useState("");
 
+    const books = initialBooks;
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const filteredBooks = SAMPLE_BOOKS.filter((book) => {
+    const filteredBooks = books.filter((book) => {
         if (!normalizedQuery) return true;
         return (
             book.title.toLowerCase().includes(normalizedQuery) ||
@@ -66,7 +72,7 @@ const BookList = () => {
             </div>
 
             {/* Books grid / Empty states */}
-            {SAMPLE_BOOKS.length === 0 ? (
+            {books.length === 0 ? (
                 <div className="library-empty-card text-center">
                     <p className="section-title mb-2">No books yet</p>
                     <p className="subtitle text-base mb-6">
@@ -80,7 +86,7 @@ const BookList = () => {
             ) : filteredBooks.length > 0 ? (
                 <div className="library-books-grid">
                     {filteredBooks.map((book) => (
-                        <BookCard key={book.slug} {...book} />
+                        <BookCard key={book.slug || book.id || book.title} {...book} />
                     ))}
                 </div>
             ) : (
