@@ -31,6 +31,12 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
     const [inputMessage, setInputMessage] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const responseTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+    const clearAllTimers = () => {
+        responseTimersRef.current.forEach((timer) => clearTimeout(timer));
+        responseTimersRef.current = [];
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,6 +47,16 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
             scrollToBottom();
         }
     }, [messages, isOpen]);
+
+    // Cleanup all pending response timers and speech synthesis on unmount
+    useEffect(() => {
+        return () => {
+            clearAllTimers();
+            if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
 
     // Handle voice playback using Web Speech API
     const speakText = (text: string) => {
@@ -113,6 +129,7 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
     };
 
     const handleClose = () => {
+        clearAllTimers();
         if (typeof window !== "undefined" && "speechSynthesis" in window) {
             window.speechSynthesis.cancel();
         }
@@ -135,8 +152,11 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
         setMessages((prev) => [...prev, userMsg]);
         setInputMessage("");
 
-        // Generate intelligent contextual response
-        setTimeout(() => {
+        // Generate intelligent contextual response with managed timer handle
+        const timer = setTimeout(() => {
+            // Remove this timer from the active list
+            responseTimersRef.current = responseTimersRef.current.filter((t) => t !== timer);
+
             const aiResponses = [
                 `That's a profound observation regarding "${bookTitle}". In this work, ${bookAuthor} emphasizes the relationship between these concepts and practical execution.`,
                 `Great question! One of the core takeaways is how we can structure our perspective around this principle. As detailed in the chapters, consistency and deep engagement are pivotal.`,
@@ -154,6 +174,8 @@ const VoiceInterviewButton: React.FC<VoiceInterviewButtonProps> = ({
             setMessages((prev) => [...prev, assistantMsg]);
             speakText(chosenResponse);
         }, 600);
+
+        responseTimersRef.current.push(timer);
     };
 
     return (
