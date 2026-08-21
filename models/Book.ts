@@ -35,7 +35,6 @@ const BookSchema = new Schema<IBookDocument>(
             unique: true,
             trim: true,
             lowercase: true,
-            index: true,
         },
         coverURL: {
             type: String,

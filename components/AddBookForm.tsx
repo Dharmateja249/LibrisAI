@@ -37,12 +37,18 @@ const AddBookForm = () => {
     const [isPdfDragOver, setIsPdfDragOver] = useState(false);
     const [isCoverDragOver, setIsCoverDragOver] = useState(false);
 
-    // Refs for hidden inputs
+    // Refs for hidden inputs & race condition handling
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
     const coverPreviewRef = useRef<string | null>(null);
+    const coverGenerationTokenRef = useRef(0);
+    const pdfFileRef = useRef<File | null>(null);
+    const coverFileRef = useRef<File | null>(null);
 
     const updateCover = (file: File | null) => {
+        coverGenerationTokenRef.current += 1;
+        coverFileRef.current = file;
+
         if (coverPreviewRef.current && !coverPreviewRef.current.startsWith("data:")) {
             URL.revokeObjectURL(coverPreviewRef.current);
             coverPreviewRef.current = null;
@@ -62,16 +68,31 @@ const AddBookForm = () => {
 
     // Auto-extract first page of PDF as cover preview if user has not uploaded a custom cover
     const autoGenerateCoverFromPdf = async (file: File) => {
-        if (coverFile) return; // Keep user's custom cover if present
+        if (coverFileRef.current) return; // Keep user's custom cover if present
+        const token = ++coverGenerationTokenRef.current;
         try {
             setIsExtractingCover(true);
             const dataUrl = await renderPdfFirstPage(file);
-            setCoverPreview(dataUrl);
-            setIsAutoCover(true);
+            // Apply result only if token still matches, PDF is unchanged, and no custom cover is active
+            if (
+                token === coverGenerationTokenRef.current &&
+                pdfFileRef.current === file &&
+                !coverFileRef.current
+            ) {
+                if (coverPreviewRef.current && !coverPreviewRef.current.startsWith("data:")) {
+                    URL.revokeObjectURL(coverPreviewRef.current);
+                    coverPreviewRef.current = null;
+                }
+                coverPreviewRef.current = dataUrl;
+                setCoverPreview(dataUrl);
+                setIsAutoCover(true);
+            }
         } catch (e) {
             console.warn("Could not preview first page:", e);
         } finally {
-            setIsExtractingCover(false);
+            if (token === coverGenerationTokenRef.current) {
+                setIsExtractingCover(false);
+            }
         }
     };
 
@@ -96,6 +117,7 @@ const AddBookForm = () => {
         }
         setErrorMessage(null);
         setExistingBookSlug(null);
+        pdfFileRef.current = file;
         setPdfFile(file);
 
         // Auto-fill title if empty
@@ -125,8 +147,14 @@ const AddBookForm = () => {
 
     const removePdf = (e: React.MouseEvent) => {
         e.stopPropagation();
+        coverGenerationTokenRef.current += 1;
+        pdfFileRef.current = null;
         setPdfFile(null);
         if (isAutoCover) {
+            if (coverPreviewRef.current && !coverPreviewRef.current.startsWith("data:")) {
+                URL.revokeObjectURL(coverPreviewRef.current);
+                coverPreviewRef.current = null;
+            }
             setCoverPreview(null);
             setIsAutoCover(false);
         }
@@ -475,11 +503,15 @@ const AddBookForm = () => {
                             <label className="block text-sm font-medium text-[var(--text-primary)]">
                                 Cover Image
                             </label>
-                            {isAutoCover && (
+                            {isExtractingCover ? (
+                                <span className="text-xs text-[#663820] font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200 animate-pulse">
+                                    Extracting Page 1…
+                                </span>
+                            ) : isAutoCover ? (
                                 <span className="text-xs text-[#663820] font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                                     Auto-generated from Page 1
                                 </span>
-                            )}
+                            ) : null}
                         </div>
 
                         {coverPreview ? (

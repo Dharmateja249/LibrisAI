@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { getBookBySlug, getBookSegments } from "@/lib/actions/book.actions";
 import DeleteBookButton from "@/components/DeleteBookButton";
+import VoiceInterviewButton from "@/components/VoiceInterviewButton";
 
 interface BookDetailPageProps {
     params: Promise<{
@@ -14,7 +16,8 @@ interface BookDetailPageProps {
 
 export async function generateMetadata({ params }: BookDetailPageProps): Promise<Metadata> {
     const { slug } = await params;
-    const book = await getBookBySlug(slug);
+    const { userId } = await auth();
+    const book = await getBookBySlug(slug, userId ?? undefined);
 
     if (!book) {
         return {
@@ -30,13 +33,23 @@ export async function generateMetadata({ params }: BookDetailPageProps): Promise
 
 const BookDetailPage = async ({ params }: BookDetailPageProps) => {
     const { slug } = await params;
-    const book = await getBookBySlug(slug);
+    const { userId } = await auth();
+    const book = await getBookBySlug(slug, userId ?? undefined);
 
     if (!book) {
         notFound();
     }
 
-    const segments = book._id ? await getBookSegments(book._id) : [];
+    // Prefer the populated segments already returned by getBookBySlug (works for
+    // both sample and DB books). Only fall back to a separate query when the book
+    // response legitimately omits them (e.g. segments weren't populated).
+    let segments = Array.isArray(book.segments) && book.segments.length > 0
+        ? book.segments
+        : [];
+
+    if (segments.length === 0 && book._id && !String(book._id).startsWith("sample-")) {
+        segments = await getBookSegments(String(book._id));
+    }
 
     return (
         <main className="container relative">
@@ -100,26 +113,14 @@ const BookDetailPage = async ({ params }: BookDetailPageProps) => {
                         </div>
 
                         <div className="pt-6 mt-6 border-t border-[var(--border-subtle)] flex flex-wrap items-center gap-4">
-                            <button
-                                type="button"
-                                id="start-voice-interview-btn"
-                                className="library-cta-primary !px-6 !py-3 !text-sm flex items-center gap-2"
-                            >
-                                <svg
-                                    className="w-4 h-4 text-white"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                                    />
-                                </svg>
-                                <span>Start Voice Interview</span>
-                            </button>
+                            <VoiceInterviewButton
+                                bookId={book._id ? String(book._id) : undefined}
+                                bookSlug={book.slug}
+                                bookTitle={book.title}
+                                bookAuthor={book.author}
+                                bookVoice={book.voice}
+                                bookSummary={book.summary}
+                            />
 
                             <Link
                                 href="/books/new"
@@ -128,12 +129,14 @@ const BookDetailPage = async ({ params }: BookDetailPageProps) => {
                                 Upload Another Book
                             </Link>
 
-                            {/* Delete button – only show for real DB books */}
-                            {book._id && !String(book._id).startsWith("sample-") && (
-                                <DeleteBookButton
-                                    bookId={String(book._id)}
-                                    bookTitle={book.title}
-                                />
+                            {/* Delete button – only show for the owner of real DB books */}
+                            {book._id &&
+                                !String(book._id).startsWith("sample-") &&
+                                Boolean(userId && book.clerkId === userId) && (
+                                    <DeleteBookButton
+                                        bookId={String(book._id)}
+                                        bookTitle={book.title}
+                                    />
                             )}
                         </div>
                     </div>

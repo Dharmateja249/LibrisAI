@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Types } from "mongoose";
+import { auth } from "@clerk/nextjs/server";
 import connectToDatabase from "@/lib/mongodb";
 import Book from "@/models/Book";
 import BookSegment from "@/models/BookSegment";
@@ -198,16 +199,28 @@ export async function getBooks(params: GetBooksParams = {}): Promise<BookCardPro
             await seedSampleBooks();
         }
 
-        const filter: Record<string, unknown> = {};
+        const conditions: Record<string, unknown>[] = [];
 
         if (clerkId) {
-            filter.clerkId = clerkId;
+            conditions.push({
+                $or: [{ clerkId }, { clerkId: "" }, { clerkId: { $exists: false } }],
+            });
+        } else {
+            conditions.push({
+                $or: [{ clerkId: "" }, { clerkId: { $exists: false } }],
+            });
         }
 
         if (query.trim()) {
             const regex = new RegExp(query.trim(), "i");
-            filter.$or = [{ title: regex }, { author: regex }];
+            conditions.push({
+                $or: [{ title: regex }, { author: regex }],
+            });
         }
+
+        const filter = conditions.length > 1
+            ? { $and: conditions }
+            : (conditions[0] || {});
 
         const books = await Book.find(filter)
             .sort({ createdAt: -1 })
@@ -239,8 +252,9 @@ function filterSampleBooks(query: string): BookCardProps[] {
 
 /**
  * Retrieves a single book by slug along with its attached segments.
+ * Scoped by optional clerkId to enforce ownership for user-uploaded books.
  */
-export async function getBookBySlug(slug: string) {
+export async function getBookBySlug(slug: string, clerkId?: string) {
     try {
         if (!process.env.MONGODB_URI) {
             const sample = SAMPLE_BOOKS.find((b) => b.slug === slug);
@@ -253,6 +267,7 @@ export async function getBookBySlug(slug: string) {
                 coverURL: sample.coverURL,
                 voice: "priya",
                 status: "ready",
+                clerkId: "",
                 summary: `Comprehensive AI voice interactive synthesis for "${sample.title}" by ${sample.author}.`,
                 fileSize: 1024 * 1024 * 2.4,
                 pagesCount: 280,
@@ -301,6 +316,11 @@ export async function getBookBySlug(slug: string) {
         }
 
         if (!book) return null;
+
+        // If the book belongs to a specific user (clerkId is set), enforce ownership
+        if (book.clerkId && book.clerkId.trim() !== "" && book.clerkId !== clerkId) {
+            return null;
+        }
 
         // If the book exists but has empty segments, check BookSegment collection
         let rawSegments: Array<Record<string, unknown>> = Array.isArray(book.segments)
@@ -528,13 +548,42 @@ export async function getBookSegments(bookId: string) {
 
 /**
  * Creates a new interactive AI voice session for a user on a book.
+ * Derives the authenticated Clerk user ID server-side and enforces ownership for user-owned books.
  */
 export async function createVoiceSession(params: CreateVoiceSessionParams) {
     try {
+        const { userId } = await auth();
+        if (!userId) {
+            return {
+                success: false,
+                error: "Unauthorized: Please sign in to start a voice session.",
+            };
+        }
+
         await connectToDatabase();
+
+        // If it's a real MongoDB book (not a sample book), verify access/ownership
+        if (params.bookId && !params.bookId.startsWith("sample-")) {
+            const book = await Book.findById(params.bookId).lean();
+            if (!book) {
+                return {
+                    success: false,
+                    error: "Book not found.",
+                };
+            }
+
+            // If the book is owned by a specific user, verify it belongs to the authenticated user
+            if (book.clerkId && book.clerkId.trim() !== "" && book.clerkId !== userId) {
+                return {
+                    success: false,
+                    error: "You do not have permission to start a voice session for this book.",
+                };
+            }
+        }
+
         const session = await VoiceSession.create({
             bookId: params.bookId,
-            clerkId: params.clerkId,
+            clerkId: userId,
             voice: params.voice || "priya",
             status: "active",
             messages: params.messages || [
@@ -567,11 +616,23 @@ export async function createVoiceSession(params: CreateVoiceSessionParams) {
  */
 export async function deleteBook(bookId: string) {
     try {
+        const { userId } = await auth();
+        if (!userId) {
+            return {
+                success: false,
+                error: "Unauthorized: You must be signed in to delete a book.",
+            };
+        }
+
         await connectToDatabase();
 
-        const book = await Book.findById(bookId).lean();
+        // Enforce ownership: find book by both _id and clerkId
+        const book = await Book.findOne({ _id: bookId, clerkId: userId }).lean();
         if (!book) {
-            return { success: false, error: "Book not found." };
+            return {
+                success: false,
+                error: "Book not found or you do not have permission to delete it.",
+            };
         }
 
         // 1. Delete all segments linked to this book

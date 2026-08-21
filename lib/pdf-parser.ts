@@ -8,7 +8,7 @@ import type { CreateBookSegmentInput } from "@/types";
 async function getPdfJs() {
     const pdfjsLib = await import("pdfjs-dist");
     if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || "3.11.174"}/pdf.worker.min.js`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
     }
     return pdfjsLib;
 }
@@ -31,6 +31,7 @@ export async function renderPdfFirstPage(file: File): Promise<string> {
     const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(arrayBuffer),
         useSystemFonts: true,
+        isEvalSupported: false,
     });
 
     const pdfDoc = await loadingTask.promise;
@@ -74,6 +75,7 @@ export async function extractPdfTextAndSegments(
     const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(arrayBuffer),
         useSystemFonts: true,
+        isEvalSupported: false,
     });
 
     const pdfDoc = await loadingTask.promise;

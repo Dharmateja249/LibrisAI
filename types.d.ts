@@ -112,7 +112,6 @@ export interface CreateBookSegmentParams extends CreateBookSegmentInput {
 
 export interface CreateVoiceSessionParams {
     bookId: string;
-    clerkId: string;
     voice?: string;
     messages?: IVoiceMessage[];
 }

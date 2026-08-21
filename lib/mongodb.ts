@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
 import dns from "node:dns";
 
-// Ensure MongoDB Atlas SRV records resolve reliably on Windows/local networks
-try {
-    dns.setServers(["8.8.8.8", "1.1.1.1"]);
-} catch {
-    // fallback if environment does not allow modifying DNS
+// In development, ensure MongoDB Atlas SRV records resolve reliably on local networks/Windows.
+// In production, keep the platform/cloud environment's default DNS resolver.
+if (process.env.NODE_ENV === "development") {
+    try {
+        dns.setServers(["8.8.8.8", "1.1.1.1"]);
+    } catch {
+        // fallback if environment does not allow modifying DNS
+    }
 }
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -16,11 +19,10 @@ interface MongooseCache {
 }
 
 declare global {
-    // eslint-disable-next-line no-var
     var mongooseCache: MongooseCache | undefined;
 }
 
-let cached: MongooseCache = global.mongooseCache || {
+const cached: MongooseCache = global.mongooseCache || {
     conn: null,
     promise: null,
 };
