@@ -120,6 +120,7 @@ const BookDetailPage = async ({ params }: BookDetailPageProps) => {
                                 bookAuthor={book.author}
                                 bookVoice={book.voice}
                                 bookSummary={book.summary}
+                                segments={segments}
                             />
 
                             <Link
@@ -129,10 +130,10 @@ const BookDetailPage = async ({ params }: BookDetailPageProps) => {
                                 Upload Another Book
                             </Link>
 
-                            {/* Delete button – only show for the owner of real DB books */}
+                            {/* Delete button – only show for the owner of real DB books (or legacy unowned books) */}
                             {book._id &&
                                 !String(book._id).startsWith("sample-") &&
-                                Boolean(userId && book.clerkId === userId) && (
+                                Boolean(userId && (book.clerkId === userId || !book.clerkId)) && (
                                     <DeleteBookButton
                                         bookId={String(book._id)}
                                         bookTitle={book.title}

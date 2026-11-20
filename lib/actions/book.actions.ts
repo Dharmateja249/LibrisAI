@@ -383,10 +383,14 @@ export async function getBookBySlug(slug: string, clerkId?: string) {
  */
 export async function createBook(params: CreateBookParams) {
     try {
+        // Derive owner identity server-side — never trust the client
+        const { userId } = await auth();
+        const ownerClerkId = userId || "";
+
         await connectToDatabase();
 
         // 1. Check for Duplicate Book
-        const duplicateCheck = await checkBookExists(params.title, params.author, params.clerkId);
+        const duplicateCheck = await checkBookExists(params.title, params.author, ownerClerkId);
         if (duplicateCheck.exists && duplicateCheck.book) {
             return {
                 success: false,
@@ -422,7 +426,7 @@ export async function createBook(params: CreateBookParams) {
             voice: params.voice || "priya",
             fileSize: params.fileSize || 0,
             pagesCount: params.pagesCount || 0,
-            clerkId: params.clerkId || "",
+            clerkId: ownerClerkId,
             status: "ready",
             summary:
                 params.summary ||
@@ -668,8 +672,15 @@ export async function deleteBook(bookId: string) {
 
         await connectToDatabase();
 
-        // Enforce ownership: find book by both _id and clerkId
-        const book = await Book.findOne({ _id: bookId, clerkId: userId }).lean();
+        // Enforce ownership: find book by _id that belongs to the user or is an unowned legacy book
+        const book = await Book.findOne({
+            _id: bookId,
+            $or: [
+                { clerkId: userId },
+                { clerkId: "" },
+                { clerkId: { $exists: false } },
+            ],
+        }).lean();
         if (!book) {
             return {
                 success: false,
